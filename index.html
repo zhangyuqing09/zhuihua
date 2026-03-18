@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>追花 · 北京赏花指南</title>
+  <meta name="description" content="北京春季赏花追踪 App，实时花况地图、花历日程、社区打卡" />
+  <meta name="theme-color" content="#0a0a14" />
+
+  <!-- Open Graph / 分享预览 -->
+  <meta property="og:title" content="追花 · 北京赏花指南" />
+  <meta property="og:description" content="实时花况地图 · 花历日程 · 社区打卡 · 识花百科" />
+  <meta property="og:type" content="website" />
+
+  <!-- React & Babel via CDN (无需构建) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js" crossorigin></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #0a0a14; }
+    #root { height: 100%; }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    button:active { transform: scale(0.97); }
+    button { -webkit-tap-highlight-color: transparent; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    /* ─── 数据 ──────────────────────────────────────────────── */
+    const PARKS = [
+      { id:1, name:"玉渊潭公园",       district:"海淀区", flowers:["樱花","连翘"],   bloom:95, peak:"3月16–22日", dist:2.3,  status:"盛花期", lat:280, lng:180, color:"#e8749a", userCount:1243, tip:"东门入园直走约200m即达樱花主景区" },
+      { id:2, name:"颐和园",           district:"海淀区", flowers:["玉兰","迎春"],   bloom:80, peak:"3月14–20日", dist:5.8,  status:"盛花期", lat:200, lng:100, color:"#f0a050", userCount:980,  tip:"东宫门进入，仁寿殿前玉兰最为壮观" },
+      { id:3, name:"香山公园",         district:"海淀区", flowers:["山桃花","杏花"], bloom:55, peak:"3月18–25日", dist:12.4, status:"初花期", lat:150, lng:70,  color:"#c87050", userCount:432,  tip:"碧云寺附近山桃花成片，建议早晨前往" },
+      { id:4, name:"北海公园",         district:"西城区", flowers:["玉兰","碧桃"],   bloom:70, peak:"3月15–22日", dist:6.1,  status:"盛花期", lat:220, lng:260, color:"#d060c0", userCount:756,  tip:"白塔南侧团城旁玉兰树群为北京最古老" },
+      { id:5, name:"奥林匹克森林公园", district:"朝阳区", flowers:["迎春花","连翘"], bloom:90, peak:"3月12–18日", dist:8.3,  status:"盛花期", lat:120, lng:310, color:"#60c070", userCount:892,  tip:"南园主湖周边迎春花绵延数公里" },
+      { id:6, name:"天坛公园",         district:"东城区", flowers:["碧桃","丁香"],   bloom:30, peak:"3月25–4月5日",dist:4.7,  status:"待开放", lat:340, lng:290, color:"#8060d0", userCount:210,  tip:"丁香路是赏丁香的绝佳地点，稍晚开放" },
+      { id:7, name:"植物园",           district:"海淀区", flowers:["梅花","迎春"],   bloom:85, peak:"3月10–18日", dist:11.2, status:"盛花期", lat:180, lng:60,  color:"#e05080", userCount:634,  tip:"梅园内300余株梅花，建议工作日前往" },
+    ];
+
+    const TIMELINE = [
+      { id:1, date:"3月10–15日",   flower:"梅花 · 早樱",   parks:"植物园·玉渊潭",          color:"#e05080", icon:"🌸", status:"已过高峰" },
+      { id:2, date:"3月14–20日",   flower:"玉兰 · 迎春花", parks:"颐和园·北海公园·奥森",   color:"#f0a050", icon:"🌺", status:"正在盛开" },
+      { id:3, date:"3月16–22日",   flower:"樱花 · 连翘",   parks:"玉渊潭·植物园",          color:"#e8749a", icon:"🌸", status:"今日最佳", today:true },
+      { id:4, date:"3月18–25日",   flower:"山桃花 · 杏花", parks:"香山·望京公园",          color:"#c87050", icon:"🍑", status:"即将开放" },
+      { id:5, date:"3月25–4月5日", flower:"碧桃 · 丁香",   parks:"天坛·中山公园",          color:"#8060d0", icon:"💜", status:"倒计时9天" },
+      { id:6, date:"4月5–15日",    flower:"海棠 · 牡丹",   parks:"恭王府·景山公园",        color:"#c04880", icon:"🌷", status:"倒计时20天" },
+    ];
+
+    const COMMUNITY = [
+      { id:1, user:"花痴小桃", avatar:"桃", park:"玉渊潭公园",       flower:"染井吉野樱", score:5, img:"cherry",   time:"10分钟前", desc:"今天特意早起6点赶到，晨光下的樱花简直绝了！东门往里走直接就是，人还不多！", bloom:"95%盛开", likes:234 },
+      { id:2, user:"北京老炮儿",avatar:"老", park:"颐和园",           flower:"白玉兰",   score:4, img:"magnolia", time:"1小时前",  desc:"仁寿殿前几棵大玉兰开得非常好，不过人也多。建议平日去，周末人挤人。",         bloom:"80%盛开", likes:156 },
+      { id:3, user:"摄影师阿飞",avatar:"飞", park:"奥林匹克森林公园",flower:"迎春花",   score:5, img:"spring",   time:"2小时前",  desc:"南园湖边连翘迎春铺天盖地，配上蓝天效果超好。带上长焦镜头！",                 bloom:"90%盛开", likes:389 },
+      { id:4, user:"赏花达人君",avatar:"君", park:"植物园",           flower:"梅花",     score:3, img:"plum",    time:"昨天",     desc:"梅花已经过了高峰期，花瓣开始掉落，但仍有部分晚梅可看。建议本周去樱花区。",   bloom:"30%残花", likes:78  },
+    ];
+
+    const ENCYCLOPEDIA = [
+      { id:1, name:"染井吉野樱", latin:"Prunus × yedoensis", family:"蔷薇科", color:"浅粉白", period:"3月中旬–4月初", height:"5–12m",  parks:["玉渊潭","植物园"],    tip:"喜光耐寒，在北京是樱花中开放最早、数量最多的品种",       icon:"🌸", bloomColor:"#ffb6d9" },
+      { id:2, name:"白玉兰",     latin:"Magnolia denudata",  family:"木兰科", color:"纯白",   period:"3月上旬–4月初", height:"5–15m",  parks:["颐和园","北海公园"],  tip:"先花后叶，是北京春天最早开放的木本花卉之一",             icon:"🌺", bloomColor:"#fff5f0" },
+      { id:3, name:"迎春花",     latin:"Jasminum nudiflorum",family:"木犀科", color:"金黄",   period:"2月末–3月中旬", height:"0.3–5m", parks:["奥森","植物园"],      tip:"枝条垂软，常挂满金黄小花，是北京最早报春的花卉",         icon:"🌼", bloomColor:"#ffe040" },
+      { id:4, name:"山桃花",     latin:"Prunus davidiana",   family:"蔷薇科", color:"粉红",   period:"3月中旬–4月上旬",height:"3–8m",  parks:["香山","望京公园"],    tip:"比家桃早开2–3周，花色深粉，抗旱耐寒",                   icon:"🍑", bloomColor:"#ffb0c0" },
+      { id:5, name:"紫玉兰",     latin:"Magnolia liliiflora",family:"木兰科", color:"紫红",   period:"3月下旬–4月",   height:"3–5m",  parks:["中山公园","天坛"],    tip:"花朵外紫内白，气味芬芳，为著名的庭院观赏树木",           icon:"💜", bloomColor:"#c080d0" },
+    ];
+
+    const FOOTPRINT = [
+      { id:1, park:"植物园",           flower:"梅花",   date:"2026-03-08", score:4, note:"早春气温低，但梅香四溢" },
+      { id:2, park:"颐和园",           flower:"玉兰",   date:"2026-03-14", score:5, note:"白玉兰在蓝天下太美了" },
+      { id:3, park:"奥林匹克森林公园", flower:"迎春花", date:"2026-03-15", score:5, note:"环湖骑行+赏花，完美" },
+    ];
+
+    /* ─── 小组件 ─────────────────────────────────────────────── */
+    function MapDot({ park, selected, onClick }) {
+      const size = 14 + park.bloom * 0.18;
+      return (
+        <div onClick={onClick} style={{
+          position:"absolute", left:park.lng, top:park.lat,
+          width:size, height:size, borderRadius:"50%",
+          background: park.bloom >= 80 ? park.color : park.bloom >= 50 ? "#facc15" : "#64748b",
+          opacity: selected ? 1 : 0.78,
+          border: selected ? "2.5px solid #fff" : "1.5px solid rgba(255,255,255,0.4)",
+          cursor:"pointer", transition:"all 0.2s",
+          boxShadow: selected ? `0 0 0 4px ${park.color}55` : "none",
+          transform: selected ? "scale(1.2)" : "scale(1)",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          zIndex: selected ? 10 : 1,
+        }}>
+          {park.bloom >= 60 && <span style={{fontSize:9}}>✿</span>}
+        </div>
+      );
+    }
+
+    function PetalBg({ color="#e8749a", opacity=0.08 }) {
+      return (
+        <div style={{position:"absolute",inset:0,pointerEvents:"none",overflow:"hidden",zIndex:0}}>
+          {Array.from({length:8},(_,i)=>(
+            <div key={i} style={{
+              position:"absolute",
+              width: 40+(i%3)*30, height: 50+(i%4)*25,
+              borderRadius:"60% 40% 60% 40% / 50% 50% 60% 40%",
+              background: color,
+              opacity: opacity*(0.5+(i%3)*0.3),
+              left:`${(i*137)%100}%`, top:`${(i*97+20)%100}%`,
+              transform:`rotate(${i*45}deg)`,
+              filter:"blur(1px)"
+            }}/>
+          ))}
+        </div>
+      );
+    }
+
+    /* ─── 地图页 ─────────────────────────────────────────────── */
+    function MapScreen() {
+      const [selected, setSelected] = useState(null);
+      const [filter, setFilter] = useState("all");
+      const park = PARKS.find(p=>p.id===selected);
+      const filtered = filter==="all" ? PARKS : filter==="bloom" ? PARKS.filter(p=>p.bloom>=80) : PARKS.filter(p=>p.bloom<80);
+
+      return (
+        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          <div style={{padding:"12px 16px 8px",background:"rgba(15,25,18,0.96)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <div>
+                <div style={{fontSize:20,fontWeight:700,color:"#f0fdf4",letterSpacing:-0.5}}>花况地图</div>
+                <div style={{fontSize:11,color:"#6ee7b7",marginTop:1}}>北京 · 今日共 {PARKS.filter(p=>p.bloom>=80).length} 处盛开</div>
+              </div>
+              <div style={{background:"rgba(74,222,128,0.15)",border:"0.5px solid #4ade80",borderRadius:20,padding:"4px 10px",fontSize:11,color:"#4ade80"}}>🌤 12°C 晴</div>
+            </div>
+            <div style={{display:"flex",gap:6}}>
+              {[["all","全部"],["bloom","盛花期"],["soon","待开放"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setFilter(v)} style={{
+                  padding:"4px 10px",borderRadius:12,border:"none",cursor:"pointer",fontSize:11,
+                  background: filter===v ? "#4ade80" : "rgba(255,255,255,0.08)",
+                  color: filter===v ? "#052e16" : "#94a3b8",
+                  fontWeight: filter===v ? 600 : 400, transition:"all 0.2s"
+                }}>{l}</button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{flex:1,position:"relative",overflow:"hidden",background:"#0d1f12",cursor:"crosshair"}}
+               onClick={()=>setSelected(null)}>
+            <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",opacity:0.07}}>
+              {Array.from({length:8},(_,i)=><line key={"h"+i} x1="0" y1={`${i*14+1}%`} x2="100%" y2={`${i*14+1}%`} stroke="#4ade80" strokeWidth="0.5"/>)}
+              {Array.from({length:8},(_,i)=><line key={"v"+i} x1={`${i*14+1}%`} y1="0" x2={`${i*14+1}%`} y2="100%" stroke="#4ade80" strokeWidth="0.5"/>)}
+            </svg>
+            {[["海淀区",55,200],["西城区",230,260],["朝阳区",300,140],["东城区",270,310]].map(([d,x,y])=>(
+              <div key={d} style={{position:"absolute",left:x,top:y,fontSize:9,color:"rgba(110,231,183,0.3)",pointerEvents:"none",userSelect:"none"}}>{d}</div>
+            ))}
+            {filtered.map(p=>(
+              <MapDot key={p.id} park={p} selected={selected===p.id} onClick={e=>{e.stopPropagation();setSelected(p.id)}}/>
+            ))}
+            <div style={{position:"absolute",bottom:8,left:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"6px 8px",fontSize:9,color:"#94a3b8"}}>
+              {[["#4ade80","盛花期"],["#facc15","初花期"],["#64748b","待开放"]].map(([c,l])=>(
+                <div key={l} style={{display:"flex",alignItems:"center",gap:4,marginBottom:2}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:c}}/>{l}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {park ? (
+            <div style={{background:"linear-gradient(180deg,rgba(15,25,18,0.98),#0d1a10)",borderTop:`2px solid ${park.color}60`,padding:"12px 16px 16px",animation:"slideUp 0.25s ease"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                <div>
+                  <div style={{fontSize:17,fontWeight:700,color:"#f0fdf4"}}>{park.name}</div>
+                  <div style={{fontSize:11,color:"#6ee7b7",marginTop:1}}>{park.district} · {park.flowers.join(" / ")}</div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:22,fontWeight:700,color:park.color}}>{park.bloom}%</div>
+                  <div style={{fontSize:10,color:"#94a3b8"}}>开花指数</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+                {[[park.status,`${park.color}20`,park.color],[`📅 ${park.peak}`,"rgba(250,204,21,0.15)","#facc15"],[`📍 ${park.dist}km`,"rgba(255,255,255,0.07)","#94a3b8"],[`👥 ${park.userCount}人打卡`,"rgba(255,255,255,0.07)","#94a3b8"]].map(([t,bg,c])=>(
+                  <span key={t} style={{background:bg,color:c,borderRadius:4,padding:"2px 7px",fontSize:10}}>{t}</span>
+                ))}
+              </div>
+              <div style={{background:"rgba(255,255,255,0.05)",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#94a3b8",marginBottom:10,borderLeft:`2px solid ${park.color}60`}}>
+                💡 {park.tip}
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button style={{flex:1,background:park.color,border:"none",borderRadius:10,color:"#fff",fontWeight:600,fontSize:13,padding:"10px 0",cursor:"pointer"}}>🧭 导航前往</button>
+                <button style={{flex:1,background:"rgba(255,255,255,0.08)",border:"0.5px solid rgba(255,255,255,0.15)",borderRadius:10,color:"#e2e8f0",fontSize:13,padding:"10px 0",cursor:"pointer"}}>📷 打卡记录</button>
+              </div>
+            </div>
+          ) : (
+            <div style={{padding:"12px 16px",background:"rgba(15,25,18,0.95)"}}>
+              <div style={{fontSize:11,color:"#4ade8060",textAlign:"center"}}>点击地图上的花点查看详情</div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* ─── 花历页 ─────────────────────────────────────────────── */
+    function CalendarScreen() {
+      const [activeDay, setActiveDay] = useState(16);
+      const days = Array.from({length:31},(_,i)=>i+1);
+      const flowersByDay = {14:["玉兰","迎春"],15:["玉兰"],16:["樱花","迎春"],17:["樱花","山桃"],18:["樱花","山桃"],19:["樱花"],20:["樱花"],21:["樱花"],22:["樱花"],25:["碧桃","丁香"],26:["碧桃"]};
+
+      return (
+        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          <div style={{padding:"12px 16px 10px",background:"rgba(20,15,35,0.95)"}}>
+            <div style={{fontSize:20,fontWeight:700,color:"#f5f0ff",letterSpacing:-0.5}}>花历日程</div>
+            <div style={{fontSize:11,color:"#a78bfa",marginTop:1}}>2026年3月 · 北京赏花黄金月</div>
+          </div>
+          <div style={{padding:"8px 12px",background:"rgba(20,15,35,0.9)"}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:4}}>
+              {["一","二","三","四","五","六","日"].map(d=>(
+                <div key={d} style={{textAlign:"center",fontSize:9,color:"#7c6fac",padding:"2px 0"}}>{d}</div>
+              ))}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
+              {Array.from({length:5},(_,i)=><div key={"e"+i}/>)}
+              {days.map(d=>{
+                const hasFlower = flowersByDay[d];
+                const isActive = d===activeDay, isToday = d===16;
+                return (
+                  <div key={d} onClick={()=>setActiveDay(d)} style={{
+                    textAlign:"center",padding:"4px 2px",borderRadius:7,cursor:"pointer",
+                    background: isActive ? "#7c3aed" : isToday ? "rgba(124,58,237,0.2)" : "rgba(255,255,255,0.04)",
+                    border: isToday&&!isActive ? "0.5px solid #7c3aed60" : "0.5px solid transparent",
+                    transition:"all 0.15s"
+                  }}>
+                    <div style={{fontSize:11,color:isActive?"#fff":isToday?"#c4b5fd":"#d1d5db",fontWeight:isToday||isActive?600:400}}>{d}</div>
+                    {hasFlower&&(
+                      <div style={{display:"flex",justifyContent:"center",gap:1,marginTop:1}}>
+                        {hasFlower.slice(0,2).map((_,i)=>(
+                          <div key={i} style={{width:3,height:3,borderRadius:"50%",background:isActive?"#e879f9":["#e879f9","#f0a050","#4ade80","#60a5fa"][i%4]}}/>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div style={{flex:1,overflow:"auto",padding:"8px 14px 16px"}}>
+            <div style={{fontSize:12,color:"#7c6fac",fontWeight:600,marginBottom:8}}>3月花事时间轴</div>
+            <div style={{display:"flex",flexDirection:"column",gap:8,position:"relative"}}>
+              <div style={{position:"absolute",left:15,top:0,bottom:0,width:1,background:"rgba(124,58,237,0.3)"}}/>
+              {TIMELINE.map(item=>(
+                <div key={item.id} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                  <div style={{width:30,height:30,borderRadius:"50%",flexShrink:0,background:item.today?item.color:"rgba(255,255,255,0.06)",border:`1.5px solid ${item.color}60`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,zIndex:1,position:"relative"}}>{item.icon}</div>
+                  <div style={{flex:1,background:item.today?`${item.color}18`:"rgba(255,255,255,0.04)",borderRadius:10,padding:"8px 10px",border:item.today?`0.5px solid ${item.color}50`:"0.5px solid rgba(255,255,255,0.07)"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                      <div style={{fontSize:12,fontWeight:600,color:"#f5f0ff"}}>{item.flower}</div>
+                      {item.today&&<span style={{background:item.color,color:"#fff",fontSize:9,padding:"1px 5px",borderRadius:4,fontWeight:600}}>今日最佳</span>}
+                    </div>
+                    <div style={{fontSize:10,color:"#94a3b8",marginBottom:2}}>📅 {item.date}</div>
+                    <div style={{fontSize:10,color:"#7c6fac"}}>📍 {item.parks}</div>
+                    <div style={{fontSize:10,color:item.today?item.color:"#64748b",marginTop:3,fontWeight:500}}>{item.status}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ─── 社区页 ─────────────────────────────────────────────── */
+    function CommunityScreen() {
+      const [likes, setLikes] = useState({});
+      const avatarColors = {"桃":"#e8749a","老":"#f0a050","飞":"#60a5fa","君":"#a78bfa"};
+      const imgColors = {"cherry":"#ffb6d9","magnolia":"#f8f0e8","spring":"#fde68a","plum":"#d4a0c0"};
+      const imgIcons = {"cherry":"🌸","magnolia":"🌺","spring":"🌼","plum":"🌸"};
+
+      return (
+        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          <div style={{padding:"12px 16px 10px",background:"rgba(25,15,20,0.97)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div style={{fontSize:20,fontWeight:700,color:"#fdf2f8",letterSpacing:-0.5}}>花圈社区</div>
+                <div style={{fontSize:11,color:"#f9a8d4",marginTop:1}}>今日 {COMMUNITY.length} 条花况更新</div>
+              </div>
+              <button style={{background:"#be185d",border:"none",borderRadius:20,padding:"6px 14px",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ 打卡</button>
+            </div>
+          </div>
+          <div style={{flex:1,overflow:"auto",padding:"8px 14px 16px",display:"flex",flexDirection:"column",gap:12}}>
+            {COMMUNITY.map(post=>(
+              <div key={post.id} style={{background:"rgba(255,255,255,0.04)",border:"0.5px solid rgba(255,200,220,0.12)",borderRadius:14,overflow:"hidden"}}>
+                <div style={{height:110,background:`linear-gradient(135deg,${imgColors[post.img]}22,${imgColors[post.img]}44)`,display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
+                  <PetalBg color={imgColors[post.img]} opacity={0.15}/>
+                  <div style={{fontSize:40,zIndex:1}}>{imgIcons[post.img]}</div>
+                  <div style={{position:"absolute",top:8,right:8,background:"rgba(0,0,0,0.4)",borderRadius:6,padding:"2px 6px",fontSize:9,color:"rgba(255,255,255,0.8)"}}>📷 实拍</div>
+                  <div style={{position:"absolute",bottom:8,left:8,background:"rgba(0,0,0,0.4)",borderRadius:6,padding:"2px 6px",fontSize:9,color:"rgba(255,255,255,0.8)"}}>{post.bloom}</div>
+                </div>
+                <div style={{padding:"10px 12px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                    <div style={{width:28,height:28,borderRadius:"50%",background:avatarColors[post.avatar]||"#94a3b8",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff"}}>{post.avatar}</div>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:600,color:"#fdf2f8"}}>{post.user}</div>
+                      <div style={{fontSize:10,color:"#9d4e7a"}}>{post.park} · {post.time}</div>
+                    </div>
+                    <div style={{marginLeft:"auto",display:"flex",gap:1}}>
+                      {Array.from({length:5},(_,i)=><span key={i} style={{fontSize:10,color:i<post.score?"#f0a050":"#374151"}}>★</span>)}
+                    </div>
+                  </div>
+                  <div style={{fontSize:12,color:"#e2d4ec",lineHeight:1.6,marginBottom:8}}>{post.desc}</div>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <span style={{background:"rgba(190,24,93,0.15)",color:"#f9a8d4",borderRadius:4,padding:"2px 7px",fontSize:10}}>{post.flower}</span>
+                    <button onClick={()=>setLikes(l=>({...l,[post.id]:!l[post.id]}))} style={{background:"none",border:"0.5px solid rgba(255,255,255,0.12)",borderRadius:12,padding:"3px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:4,color:likes[post.id]?"#f9a8d4":"#94a3b8",fontSize:11}}>
+                      {likes[post.id]?"❤️":"🤍"} {post.likes+(likes[post.id]?1:0)}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    /* ─── 百科页 ─────────────────────────────────────────────── */
+    function EncyclopediaScreen() {
+      const [selected, setSelected] = useState(null);
+      const [identifying, setIdentifying] = useState(false);
+      const [identified, setIdentified] = useState(false);
+      const flower = ENCYCLOPEDIA.find(f=>f.id===selected);
+
+      const handleIdentify = () => {
+        setIdentifying(true);
+        setTimeout(()=>{ setIdentifying(false); setIdentified(true); setSelected(1); }, 2000);
+      };
+
+      return (
+        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          <div style={{padding:"12px 16px 10px",background:"rgba(15,10,35,0.97)"}}>
+            <div style={{fontSize:20,fontWeight:700,color:"#ede9fe",letterSpacing:-0.5}}>识花百科</div>
+            <div style={{fontSize:11,color:"#a78bfa",marginTop:1}}>北京常见春花图鉴 · AI识花</div>
+          </div>
+          <div style={{padding:"8px 14px"}}>
+            <button onClick={handleIdentify} style={{width:"100%",background:identifying?"rgba(139,92,246,0.3)":"rgba(139,92,246,0.15)",border:"1px solid #7c3aed60",borderRadius:12,padding:"12px 0",color:identifying?"#c4b5fd":"#a78bfa",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,transition:"all 0.3s"}}>
+              {identifying ? <><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⟳</span> AI 识别中…</>
+               : identified ? <><span>✓</span> 已识别：染井吉野樱 · 点击下方查看</>
+               : <><span style={{fontSize:16}}>📷</span> 拍照识花 · AI 智能识别</>}
+            </button>
+          </div>
+          {flower ? (
+            <div style={{flex:1,overflow:"auto",padding:"0 14px 16px"}}>
+              <div style={{background:`linear-gradient(135deg,${flower.bloomColor}15,rgba(255,255,255,0.03))`,border:`0.5px solid ${flower.bloomColor}40`,borderRadius:14,padding:"14px"}}>
+                <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",color:"#7c6fac",cursor:"pointer",fontSize:12,marginBottom:8,padding:0}}>← 返回列表</button>
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+                  <div style={{width:56,height:56,borderRadius:14,background:`${flower.bloomColor}30`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>{flower.icon}</div>
+                  <div>
+                    <div style={{fontSize:18,fontWeight:700,color:"#ede9fe"}}>{flower.name}</div>
+                    <div style={{fontSize:10,color:"#7c6fac",fontStyle:"italic"}}>{flower.latin}</div>
+                    <div style={{fontSize:10,color:"#9d8fc8",marginTop:2}}>{flower.family}</div>
+                  </div>
+                </div>
+                {[["花色",flower.color],["花期",flower.period],["株高",flower.height]].map(([k,v])=>(
+                  <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"0.5px solid rgba(255,255,255,0.06)"}}>
+                    <span style={{fontSize:12,color:"#7c6fac"}}>{k}</span>
+                    <span style={{fontSize:12,color:"#d8b4fe",fontWeight:500}}>{v}</span>
+                  </div>
+                ))}
+                <div style={{margin:"10px 0 6px",fontSize:11,color:"#7c6fac"}}>北京赏花地点</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {flower.parks.map(p=><span key={p} style={{background:"rgba(139,92,246,0.15)",color:"#c4b5fd",borderRadius:6,padding:"3px 8px",fontSize:11}}>{p}</span>)}
+                </div>
+                <div style={{marginTop:12,background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"10px 12px",fontSize:12,color:"#9d8fc8",lineHeight:1.7,borderLeft:`2px solid ${flower.bloomColor}60`}}>
+                  💡 {flower.tip}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{flex:1,overflow:"auto",padding:"0 14px 16px"}}>
+              <div style={{fontSize:12,color:"#7c6fac",fontWeight:600,marginBottom:8,marginTop:4}}>北京春花图鉴</div>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {ENCYCLOPEDIA.map(f=>(
+                  <div key={f.id} onClick={()=>setSelected(f.id)} style={{background:"rgba(255,255,255,0.04)",border:`0.5px solid ${f.bloomColor}30`,borderRadius:12,padding:"10px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,transition:"all 0.2s"}}>
+                    <div style={{width:40,height:40,borderRadius:10,background:`${f.bloomColor}20`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{f.icon}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:600,color:"#ede9fe"}}>{f.name}</div>
+                      <div style={{fontSize:10,color:"#7c6fac",fontStyle:"italic",marginTop:1}}>{f.latin}</div>
+                      <div style={{fontSize:10,color:"#64748b",marginTop:2}}>花期：{f.period}</div>
+                    </div>
+                    <div style={{fontSize:14,color:"#6b21a8"}}>›</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* ─── 我的页 ─────────────────────────────────────────────── */
+    function ProfileScreen() {
+      const stats = [{label:"打卡公园",value:FOOTPRINT.length},{label:"赏花种类",value:5},{label:"发布动态",value:7},{label:"获赞总数",value:312}];
+      return (
+        <div style={{flex:1,overflow:"auto"}}>
+          <div style={{padding:"16px",background:"rgba(10,15,30,0.98)",borderBottom:"0.5px solid rgba(255,255,255,0.08)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+              <div style={{width:52,height:52,borderRadius:"50%",background:"linear-gradient(135deg,#3b82f6,#818cf8)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🌸</div>
+              <div>
+                <div style={{fontSize:16,fontWeight:700,color:"#f0f9ff"}}>追花人</div>
+                <div style={{fontSize:11,color:"#60a5fa",marginTop:2}}>连续打卡 12 天 🔥</div>
+              </div>
+              <button style={{marginLeft:"auto",background:"rgba(255,255,255,0.07)",border:"0.5px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"5px 10px",color:"#94a3b8",fontSize:11,cursor:"pointer"}}>编辑</button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+              {stats.map(s=>(
+                <div key={s.label} style={{background:"rgba(255,255,255,0.05)",borderRadius:10,padding:"8px 4px",textAlign:"center"}}>
+                  <div style={{fontSize:18,fontWeight:700,color:"#60a5fa"}}>{s.value}</div>
+                  <div style={{fontSize:9,color:"#64748b",marginTop:1}}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{padding:"12px 14px"}}>
+            <div style={{fontSize:13,fontWeight:600,color:"#e2e8f0",marginBottom:8}}>追花足迹</div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {FOOTPRINT.map(f=>(
+                <div key={f.id} style={{background:"rgba(255,255,255,0.04)",border:"0.5px solid rgba(96,165,250,0.15)",borderRadius:12,padding:"10px 12px",display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:36,height:36,borderRadius:9,background:"rgba(59,130,246,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>📍</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:12,fontWeight:600,color:"#f0f9ff"}}>{f.park}</div>
+                    <div style={{fontSize:10,color:"#60a5fa",marginTop:1}}>{f.flower} · {f.date}</div>
+                    <div style={{fontSize:10,color:"#64748b",marginTop:1}}>{f.note}</div>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2}}>
+                    {Array.from({length:5},(_,i)=><span key={i} style={{fontSize:8,color:i<f.score?"#f0a050":"#1e293b"}}>★</span>)}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{fontSize:13,fontWeight:600,color:"#e2e8f0",margin:"14px 0 8px"}}>设置</div>
+            <div style={{display:"flex",flexDirection:"column",gap:1,background:"rgba(255,255,255,0.03)",borderRadius:12,overflow:"hidden"}}>
+              {[["🔔","推送通知","花期提醒"],["🌍","定位服务","获取附近花况"],["📥","离线缓存","无网络时可用"],["🎨","主题设置","深色 / 浅色"]].map(([icon,title,sub])=>(
+                <div key={title} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 12px",borderBottom:"0.5px solid rgba(255,255,255,0.04)",cursor:"pointer"}}>
+                  <span style={{fontSize:14}}>{icon}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:12,color:"#e2e8f0"}}>{title}</div>
+                    <div style={{fontSize:10,color:"#64748b"}}>{sub}</div>
+                  </div>
+                  <span style={{color:"#334155",fontSize:12}}>›</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ─── 主 App ─────────────────────────────────────────────── */
+    function App() {
+      const [tab, setTab] = useState("map");
+      const tabs = [
+        {id:"map",  icon:"🗺️", label:"地图"},
+        {id:"cal",  icon:"📅", label:"花历"},
+        {id:"comm", icon:"🌸", label:"社区"},
+        {id:"wiki", icon:"📖", label:"百科"},
+        {id:"me",   icon:"👤", label:"我的"},
+      ];
+      const bg     = {map:"#0d1a10", cal:"#0f0a20", comm:"#160a12", wiki:"#0a0820", me:"#080e1a"};
+      const accent = {map:"#4ade80", cal:"#a78bfa", comm:"#f9a8d4", wiki:"#c4b5fd", me:"#60a5fa"};
+
+      return (
+        <div style={{display:"flex",justifyContent:"center",alignItems:"center",minHeight:"100vh",padding:"20px",background:"#0a0a14",fontFamily:"-apple-system,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif"}}>
+          <div style={{width:375,height:750,borderRadius:44,background:bg[tab],border:"2px solid rgba(255,255,255,0.08)",boxShadow:"0 40px 80px rgba(0,0,0,0.6), inset 0 0 0 0.5px rgba(255,255,255,0.05)",display:"flex",flexDirection:"column",overflow:"hidden",transition:"background 0.4s ease",position:"relative"}}>
+            {/* Dynamic Island */}
+            <div style={{position:"absolute",top:12,left:"50%",transform:"translateX(-50%)",width:120,height:34,background:"#000",borderRadius:20,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+              <div style={{width:10,height:10,borderRadius:"50%",background:"#111"}}/>
+              <div style={{width:8,height:8,borderRadius:"50%",background:"#1a1a1a",border:"0.5px solid #333"}}/>
+            </div>
+            {/* 内容区 */}
+            <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",paddingTop:44}}>
+              {tab==="map"  && <MapScreen/>}
+              {tab==="cal"  && <CalendarScreen/>}
+              {tab==="comm" && <CommunityScreen/>}
+              {tab==="wiki" && <EncyclopediaScreen/>}
+              {tab==="me"   && <ProfileScreen/>}
+            </div>
+            {/* 底部导航 */}
+            <div style={{display:"flex",background:"rgba(0,0,0,0.6)",backdropFilter:"blur(12px)",borderTop:"0.5px solid rgba(255,255,255,0.08)",paddingBottom:8}}>
+              {tabs.map(t=>(
+                <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"8px 0 2px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,transition:"all 0.2s"}}>
+                  <span style={{fontSize:18,opacity:tab===t.id?1:0.4,filter:tab===t.id?"none":"grayscale(1)",transition:"all 0.2s"}}>{t.icon}</span>
+                  <span style={{fontSize:9.5,fontWeight:tab===t.id?600:400,color:tab===t.id?accent[t.id]:"#475569",transition:"all 0.2s"}}>{t.label}</span>
+                  {tab===t.id&&<div style={{width:3,height:3,borderRadius:"50%",background:accent[t.id]}}/>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+</body>
+</html>
