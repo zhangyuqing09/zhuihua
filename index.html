@@ -125,7 +125,10 @@
       const [selected, setSelected] = useState(null);
       const [filter, setFilter] = useState("all");
       const park = PARKS.find(p=>p.id===selected);
-      const filtered = filter==="all" ? PARKS : filter==="bloom" ? PARKS.filter(p=>p.bloom>=80) : PARKS.filter(p=>p.bloom<80): PARKS.filter(50=>p.bloom<80);
+      const filtered = filter==="all"     ? PARKS 
+  : filter==="bloom"                ? PARKS.filter(p=>p.bloom>=80) 
+  : filter==="initial"              ? PARKS.filter(p=>p.bloom>=50 && p.bloom<80)
+  : PARKS.filter(p=>p.bloom<50);
 
       return (
         <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
